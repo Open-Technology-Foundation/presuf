@@ -1,17 +1,30 @@
 #!/bin/bash
-# Module: presuf.bash
-# Function: presuf
-# Desc: Prepend/Append text to filenames in a list.
-# Usage: presuf [-options] [prefix] [suffix] [<filenames]
-# Options:
-#   -s|--squeeze    Do not add separator space to prefix or suffix.
-#   -X|--execute    Execute the output as a script.
-#   -S|--shebang [shebang]
+# # Module: presuf.bash
+#
+# ## Function: presuf
+#
+# ### Desc:
+#   Prepend/Append text to filenames in a stream list.
+#
+# ### Usage:
+#     presuf [-options] [prefix] [suffix] [<filenames]
+#
+# ### Options:
+#     -z|--squeeze  Do not add separator space to prefix or suffix.
+#     -X|--execute  Execute the output as a script.
+#     -Q|--quote ['|"]
+#                   Wraps filename in quotes.
+#                   If 'quote' not specified, defaults to "'"
+#     -s|--shebang [shebang]
 #                   Inserts !#shebang at top of output.
-#                   If shebang not specified, default to "$BASH"
-#   -V|--version    Print version. "$FUNCNAME $VERSION"
-#   -h|--help       This docstring help.
-# Example: ls *.txt | presuf nano +34
+#                   If 'shebang' not specified, defaults to "$BASH"
+#     -V|--version  Print version.
+#     -h|--help     This docstring help.
+#
+# ### Examples:
+#     ls *.txt | presuf vi +34
+#     find -name '*.sh' | presuf "$EDITOR" '+1' -Qs >myscript
+#     findgrep ~/scripts -name 'bash'  | presuf "$EDITOR" -Qs
 
 presuf() {
   # Function: presuf
@@ -19,19 +32,23 @@ presuf() {
   # Usage: presuf [-options] [prefix] [suffix] [<filenames]
   # Example: ls | presuf nano +34
   #
-  local VERSION='0.4.20(7)'
-  local -- prefix='' suffix='' shebang=''
+  local VERSION='0.4.20(9)'
+  local -- prefix='' suffix='' shebang='' quote=''
   local -i squeeze=0 execute=0 prompt=1
   while(($#)); do case "$1" in
-    -s|--squeeze)   squeeze=1 ;;
+    -z|--squeeze)   squeeze=1 ;;
     -X|--execute)   execute=1 ;;
-    -y|--no-prompt) prompt=0 ;;
-    -S|--shebang)
-        shebang="$BASH"
+    -Q|--quote)
         (($# > 1)) && [[ ${2:0:1} != '-' ]] && {
-          shift
-          shebang="$1"
+          shift; quote="$1"
         }
+        [[ -z "$quote" ]] && quote="'"
+        ;;
+    -s|--shebang)
+        (($# > 1)) && [[ ${2:0:1} != '-' ]] && {
+          shift; shebang="${1/\#\!/}"
+        }
+        [[ -z "$shebang" ]] && shebang="$BASH"
         ;;
     -V|--version)   echo "$FUNCNAME $VERSION"; return 0 ;;
     -h|--help)
@@ -47,7 +64,7 @@ presuf() {
         #bash_docstring -e "$0" "$FUNCNAME" | less -FXRS
         return 0
         ;;
-    -[sXySVh]*) #shellcheck disable=SC2046 # de-aggregate aggregated short options
+    -[zXQsVh]*) #shellcheck disable=SC2046 # de-aggregate aggregated short options
         set -- '' $(printf -- "-%c " $(grep -o . <<<"${1:1}")) "${@:2}" ;;
     -?|--*)
         >&2 echo "$FUNCNAME: error: Invalid option '$1'"; return 22 ;;
@@ -64,10 +81,11 @@ presuf() {
   [[ -t 0 ]] && exit 1
   [[ -n $shebang ]] && echo "#!$shebang"
   while read -r filename; do
+    filename="${prefix}${quote}${filename}${quote}${suffix}"
     if ((execute)); then
-      ( ${prefix}${filename}${suffix} ) </dev/tty
+      ( $filename ) </dev/tty
     else
-      echo "${prefix}${filename}${suffix}"
+      echo "$filename"
     fi
   done
 }
